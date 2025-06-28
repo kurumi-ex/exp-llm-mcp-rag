@@ -1,16 +1,10 @@
 from rich.panel import Panel
-from augmented import hello
+from augmented.utils import pretty
 
 
 def main():
-    print(hello())
-    print("Hello from exp-llm-mcp-rag!")
+    pretty.log_title("hello world", "pku")
 
 
 if __name__ == "__main__":
     main()
-
-
-print(
-    Panel("", title="Hello"),
-)
