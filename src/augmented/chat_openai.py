@@ -17,6 +17,7 @@ from augmented.utils import pretty
 
 dotenv.load_dotenv()
 
+
 class ToolCallFunction(BaseModel):
     name: str = ""
     arguments: str = ""
@@ -56,7 +57,7 @@ class AsyncChatBot:
         if self.context:
             self.messages.append({"role": "user", "content": self.context})
 
-    async def chat(self, prompt: str = "", print_llm_output: bool = True):
+    async def chat(self, prompt: str = "", print_llm_output: bool = True) -> ChatOpenAIChatResponse:
         pretty.log_title("Chat")
 
         if prompt:
@@ -69,6 +70,7 @@ class AsyncChatBot:
         streaming = await self.llm.chat.completions.create(
             model=self.model,
             messages=self.messages,
+            tools=self.get_tool_definition(),
             stream=True
         )
 
@@ -92,19 +94,16 @@ class AsyncChatBot:
             # 处理工具调用
             if delta.tool_calls:
                 # 存储工具调用信息
-                # TODO 搞清楚
                 for tool_call_chunk in delta.tool_calls:
-                    # 第一次收到一个tool_call, 因为流式传输所以我们先设置一个占位值
-                    if len(tool_call_chunk) <= tool_call_chunk.index:
-                        tool_calls.append(ToolCall())
-                    current_call = tool_calls[tool_call_chunk.index]
+                    # 第一次收到一个tool_call
                     if tool_call_chunk.id:
-                        current_call.id = tool_call_chunk.id or ""
+                        tool_calls.append(ToolCall())
+                        tool_calls[-1].id = tool_call_chunk.id or ""
+                        tool_calls[-1].function.name = tool_call_chunk.function.name or ""
+
+                    current_call = tool_calls[tool_call_chunk.index]
                     if tool_call_chunk.function:
-                        current_call.function.name = tool_call_chunk.function.name or ""
-                        current_call.function.arguments = (
-                                tool_call_chunk.function.arguments or ""
-                        )
+                        current_call.function.arguments += tool_call_chunk.function.arguments or ""
         if print_llm_output:
             print()
 
@@ -128,7 +127,7 @@ class AsyncChatBot:
 
         return ChatOpenAIChatResponse(content=bot_ans, tool_calls=tool_calls)
 
-    def get_tool_definition(self):
+    def get_tool_definition(self) -> list[ChatCompletionToolParam]:
         return [
             ChatCompletionToolParam(
                 type="function",
@@ -140,6 +139,15 @@ class AsyncChatBot:
             )
             for t in self.tools
         ]
+
+    def append_tool_result(self, tool_call_id: str, tool_output: str) -> None:
+        self.messages.append(
+            {
+                "role": "tool",
+                "tool_call_id": tool_call_id,
+                "content": tool_output,
+            }
+        )
 
 
 if __name__ == "__main__":
