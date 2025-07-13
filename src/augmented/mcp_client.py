@@ -63,7 +63,7 @@ class MCPClient:
         # List available tools
         response = await self.session.list_tools()
         self.tools = response.tools
-        rprint("\nConnected to server with tools:", [tool.name for tool in self.tools])
+        # rprint("\nConnected to server with tools:", [tool.name for tool in self.tools])
 
 
 async def example():

@@ -19,13 +19,22 @@ class Agent:
             system_prompt: str = "",
             context: str = ""
     ):
+        self.llm = None
+        self.tools = None
         self.model: str = model
+        self.system_prompt: str = system_prompt
+        self.context: str = context
         self.mcp_clients: list[MCPClient] = mcp_clients
+
+    async def init(self):
+        for client in self.mcp_clients:
+            await client.init()
         self.tools: list[Tool] = [tool for client in self.mcp_clients for tool in client.get_tools()]
+        rprint("\nConnected to server with tools:", [tool.name for tool in self.tools])
         self.llm = AsyncChatBot(
-            model,
-            system_prompt=system_prompt,
-            context=context,
+            self.model,
+            system_prompt=self.system_prompt,
+            context=self.context,
             tools=self.tools,
         )
 
@@ -63,17 +72,15 @@ class Agent:
 
 async def main():
     fetch_client = MCPClient(name="fetch_client", command="uvx", args=["mcp-server-fetch"])
-    await fetch_client.init()
     file_args = [
         "-y",
         "@modelcontextprotocol/server-filesystem",
         os.path.join("G:\\code\\python\\exp-llm-mcp-rag", "tmp_file"),
     ]
     file_client = MCPClient(name="file_client", command="npx", args=file_args)
-    await file_client.init()
     system_prompt = "你使用write_file工具进行总结时，你要结合你上文获取的内容进行总结，用中文回答问题"
     agent = Agent("Qwen/Qwen2.5-7B-Instruct", mcp_clients=[fetch_client, file_client], system_prompt=system_prompt)
-
+    await agent.init()
     await agent.invoke("访问https://www.ty-penguin.org.uk/~auj/blog/2025/03/25/fake-jpeg/这个网站，先以markdown的形式为我总结这个页面的内容，"
                        "然后将结果存到本地G:\\code\\python\\exp-llm-mcp-rag\\tmp_file文件夹中")
     await agent.close()
