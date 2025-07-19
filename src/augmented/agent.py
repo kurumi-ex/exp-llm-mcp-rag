@@ -9,6 +9,8 @@ from rich import print as rprint
 from mcp_client import MCPClient
 from chat_openai import AsyncChatBot
 from utils import pretty
+from embedding_retrivers import EmbeddingRetriever
+from utils.info import PROJECT_ROOT_DIR
 
 
 class Agent:
@@ -70,6 +72,16 @@ class Agent:
                 return
 
 
+async def rag_fun(prompt: str):
+    rag = EmbeddingRetriever(embed_model="BAAI/bge-m3")
+    info_dir = os.path.join(PROJECT_ROOT_DIR, "knowledge")
+    for file in os.listdir(info_dir):
+        with open(os.path.join(info_dir, file), "r") as f:
+            content = f.read()
+            await rag.embed_document(content)
+    return await rag.retrival(prompt)
+
+
 async def main():
     fetch_client = MCPClient(name="fetch_client", command="uvx", args=["mcp-server-fetch"])
     file_args = [
@@ -78,11 +90,12 @@ async def main():
         os.path.join("G:\\code\\python\\exp-llm-mcp-rag", "tmp_file"),
     ]
     file_client = MCPClient(name="file_client", command="npx", args=file_args)
-    system_prompt = "你使用write_file工具进行总结时，你要结合你上文获取的内容进行总结，用中文回答问题"
-    agent = Agent("Qwen/Qwen2.5-7B-Instruct", mcp_clients=[fetch_client, file_client], system_prompt=system_prompt)
+    prompt = "use Chelsey Dietrich information to write a story , and save the story to G:\code\python\exp-llm-mcp-rag\\tmp_file"
+    context = await rag_fun(prompt)
+    print(context)
+    agent = Agent("Qwen/Qwen2.5-7B-Instruct", mcp_clients=[fetch_client, file_client], context=context)
     await agent.init()
-    await agent.invoke("访问https://www.ty-penguin.org.uk/~auj/blog/2025/03/25/fake-jpeg/这个网站，先以markdown的形式为我总结这个页面的内容，"
-                       "然后将结果存到本地G:\\code\\python\\exp-llm-mcp-rag\\tmp_file文件夹中")
+    await agent.invoke(prompt)
     await agent.close()
 
 
